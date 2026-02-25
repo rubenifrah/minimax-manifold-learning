@@ -9,7 +9,7 @@ def reconstruct_surface_tdc(points, intrinsic_dim=2):
     """
     print("Computing Tangential Complex...")
     
-    # Intrinsic dimension is 2 for a surface embedded in 3D
+    # we will probably work only with intrinsic dimension is 2 for a surface embedded in 3D
     tc = gudhi.TangentialComplex(intrisic_dim=intrinsic_dim, points=points)
     tc.compute_tangential_complex()
     
@@ -33,10 +33,10 @@ if __name__ == '__main__':
     n_points = 500
     points = generate_torus_data(n_points, R=2.0, r=0.8)
     
-    # Adding slight noise can sometimes help TDC avoid degenerate cases, 
-    # but we will try with exact points first.
+    # It seems like adding slight noise can sometimes help TDC avoid degenerate cases, 
+    # but first we try without
     
-    # Reconstruct surface
+    # Reconstruct the surface
     triangles = reconstruct_surface_tdc(points, intrinsic_dim=2)
     
     # Plotting
