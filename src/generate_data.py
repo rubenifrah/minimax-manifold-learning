@@ -28,15 +28,22 @@ def generate_torus_data(n_points, R=1.0, r=0.5):
     return points
 
 # Swiss 
-def generate_swiss_data(n_points, radius=1.0):
+def generate_swiss_data(n_points, t_max=2*np.pi, h_max=2*np.pi):
     # generate random points on the swiss roll
+    # equation
+    # x(t,h) = t cos(t)
+    # y(t,h) = t sin(t)
+    # z(t,h) = h
+    # t represents the angle of rotation (1 rotation <=> t = 2pi)
+    # h represents the height of the manifold
+    
     points = np.zeros((n_points, 3))
     for i in range(n_points):
-        theta = 2 * np.pi * np.random.rand()
-        phi = 2 * np.pi * np.random.rand()
-        points[i, 0] = theta * np.cos(theta)
-        points[i, 1] = theta * np.sin(theta)
-        points[i, 2] = phi
+        t = t_max * np.random.rand()
+        h = h_max * np.random.rand()
+        points[i, 0] = t * np.cos(t)
+        points[i, 1] = t * np.sin(t)
+        points[i, 2] = h
     return points
 
 def save_point_cloud(points, filename, data_dir='data', params=None):
