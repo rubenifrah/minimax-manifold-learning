@@ -1,0 +1,14 @@
+# environment
+.env
+.venv
+venv
+
+# __pycache__
+__pycache__/
+
+
+# .DS_Store
+.DS_Store
+
+# article
+7 - Minimax Estimation of Distances on a Surface and Minimax Manifold Learning in the Isometric-to-Convex Setting.pdf
