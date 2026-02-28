@@ -1,0 +1,249 @@
+
+% Encodage et polices
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern, cmap}
+
+% Bibliographie
+\usepackage{natbib}
+
+% Langue
+\usepackage[french]{babel}
+
+% Mathématiques
+\usepackage{amsmath, amssymb, amsthm, mathtools, esint, dsfont, bm, mathrsfs, yfonts}
+
+% Graphiques, couleurs et géométrie
+\usepackage{graphicx, xcolor}
+\usepackage{geometry}
+
+% Tableaux et mise en page
+\usepackage{array, multirow, diagbox}
+
+% TikZ et PGFPlots
+\usepackage{tikz}
+\usetikzlibrary{decorations.pathmorphing, calc, shapes.geometric, positioning, arrows.meta, shapes, quotes}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% Figures, légendes et sous-figures
+\usepackage{caption, subcaption}
+
+% Algorithmes
+\usepackage[ruled,noend]{algorithm2e}
+
+% Divers utilitaires
+\usepackage{multicol, paralist, microtype, url, framed}
+\usepackage[framemethod=tikz]{mdframed} % utilisation unique avec l'option
+\usepackage{ulem} % pour le soulignement
+
+
+% Hyperliens et signets PDF (à charger en dernier)
+\usepackage{hyperref}
+\usepackage{bookmark}
+
+
+
+
+\SetKwComment{Comment}{/* }{ */}
+\DeclareMathOperator{\ones}{ones}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\som}{sum}
+\DeclareMathOperator{\tr}{Tr}
+
+
+
+%========================================================================%
+%                       Comptages et Décorations                         %
+%========================================================================%
+
+
+
+
+% Compteurs pour les environnements mathématiques
+\newcounter{maths}  % Pour théorèmes, propositions, lemmes, corollaires
+\newcounter{defi}   % Pour définitions
+
+
+% Décoration ondulée
+\newcommand\wavydecor{%
+  \draw[%
+    decoration={coil, aspect=0, segment length=5pt, amplitude=0.8pt},%
+    decorate, line width=1.5pt, black%
+  ] (O|-P) -- (O);
+}
+
+% Décoration linéaire
+\newcommand\linedecor{%
+  \draw[line width=0.8pt, black] (O|-P) -- (O);
+}
+
+% Décoration double barre
+\newcommand\doublebardecor{%
+  \draw[line width=0.8pt, black] (O|-P) -- (O);%
+  \draw[line width=0.8pt, black] ([xshift=3pt]O|-P) -- ([xshift=3pt]O);
+}
+
+
+% Style théorème + variantes
+\mdfdefinestyle{thmstyle}{%
+  nobreak=false,
+  hidealllines=true,%
+  innerleftmargin=10pt, innerrightmargin=10pt,%
+  innertopmargin=0pt, innerbottommargin=0pt,%
+  leftmargin=10pt,%
+  skipabove=.2\baselineskip, skipbelow=.5\baselineskip,%
+  singleextra={\doublebardecor}, firstextra={\doublebardecor},%
+  secondextra={\doublebardecor}, middleextra={\doublebardecor}%
+}
+
+% Style preuve
+\mdfdefinestyle{proofstyle}{%
+  nobreak=false,
+  hidealllines=true,%
+  innerleftmargin=10pt, innerrightmargin=10pt,%
+  innertopmargin=0pt, innerbottommargin=0pt,%
+  leftmargin=10pt,%
+  skipabove=.2\baselineskip, skipbelow=.5\baselineskip,%
+  font=\itshape,%
+  singleextra={\linedecor}, firstextra={\linedecor},%
+  secondextra={\linedecor}, middleextra={\linedecor}%
+}
+
+
+% Style définition
+\mdfdefinestyle{defstyle}{%
+  nobreak=false,
+  hidealllines=true,%
+  innerleftmargin=10pt, innerrightmargin=10pt,%
+  innertopmargin=0pt, innerbottommargin=0pt,%
+  leftmargin=10pt,%
+  skipabove=.2\baselineskip, skipbelow=.5\baselineskip,%
+  singleextra={\wavydecor}, firstextra={\wavydecor},%
+  secondextra={\wavydecor}, middleextra={\wavydecor}%
+}
+
+
+
+% Théorème, Proposition, Lemme, Corollaire 
+
+\newenvironment{theo}[2][]{%
+    \vspace{10pt}\par\noindent\refstepcounter{maths}%
+    \ifx\relax#2\relax\else\label{#2}\fi%
+    \textsc{Théorème~\themaths}%
+    \ifx\relax#1\relax\else\ (\textsc{#1})\fi :%
+    \begin{mdframed}[style=thmstyle]%
+}{%
+    \end{mdframed}%
+}
+
+\newenvironment{prop}[2][]{%
+    \vspace{10pt}\par\noindent\refstepcounter{maths}%
+    \ifx\relax#2\relax\else\label{#2}\fi%
+    \textsc{Proposition~\themaths}%
+    \ifx\relax#1\relax\else\ (\textsc{#1})\fi :%
+    \begin{mdframed}[style=thmstyle]%
+}{%
+    \end{mdframed}%
+}
+
+\newenvironment{lem}[2][]{%
+    \par\noindent\refstepcounter{maths}%
+    \ifx\relax#2\relax\else\label{#2}\fi%
+    \textsc{Lemme~\themaths}%
+    \ifx\relax#1\relax\else\ (\textsc{#1})\fi :%
+    \begin{mdframed}[style=thmstyle]%
+}{%
+    \end{mdframed}%
+}
+
+\newenvironment{exo}[2][]{%
+    \vspace{10pt}\par\noindent\refstepcounter{maths}%
+    \ifx\relax#2\relax\else\label{#2}\fi%
+    \textsc{Exercice~\themaths}%
+    \ifx\relax#1\relax\else\ (\textsc{#1})\fi :%
+    \begin{mdframed}[style=thmstyle]%
+}{%
+    \end{mdframed}%
+}
+
+
+\newenvironment{coro}[2][]{%
+    \par\noindent\refstepcounter{maths}%
+    \ifx\relax#2\relax\else\label{#2}\fi%
+    \textsc{Corollaire~\themaths}%
+    \ifx\relax#1\relax\else\ (\textsc{#1})\fi :%
+    \begin{mdframed}[style=thmstyle]%
+}{%
+    \end{mdframed}%
+}
+
+% Preuve
+
+\newenvironment{preuve}[1][]{%
+    \noindent\textit{Preuve :} \ifx\relax#1\relax\else\ \textit{#1}\fi\par
+    \begin{mdframed}[style=proofstyle]%
+}{%
+    \hfill$\square$\end{mdframed}%
+}
+
+
+% Environnement pour Définition
+
+\newenvironment{defi}[2][]{%
+    \vspace{10pt}\par\noindent\refstepcounter{defi}%
+    \ifx\relax#2\relax\else\label{#2}\fi%
+    \textsc{Définition~\thedefi}%
+    \ifx\relax#1\relax\else\ (\textsc{#1})\fi :%
+    \begin{mdframed}[style=defstyle]%
+}{%
+    \end{mdframed}%
+}
+
+
+
+
+% Nouvelles commandes et raccourcis
+
+\renewcommand{\leq}{\leqslant}
+\renewcommand{\geq}{\geqslant}
+\newcommand{\ms}[1]{\mathscr{#1}}
+\newcommand{\Phx}{\Phi_x}
+\newcommand{\Phy}{\Phi_y}
+\newcommand{\X}{\mathcal{X}}
+\newcommand{\Y}{\mathcal{Y}}
+\newcommand{\Z}{\mathcal{Z}}
+
+% Commandes d'usage spécifique
+\newcommand{\norm}[1]{\left\|#1\right\|}    % norme
+\newcommand{\C}{\mathscr{C}}    % classe C
+\renewcommand{\S}{\mathbb{S}}   % sphère
+\newcommand{\R}{\mathbb{R}}     % Réels
+\newcommand{\Ra}{\mathscr{R}}   % Radon
+\renewcommand{\d}{\textnormal{d}}     % différentiel
+\renewcommand{\P}{\mathscr{P}}  % polynôme
+\renewcommand{\hat}{\widehat}   % chapeaux de bonne taille
+\newcommand{\ch}{\wedge}
+\newcommand{\cc}{{\ch \ch}}
+\newcommand{\ce}{{\ch *}}
+\newcommand{\ec}{{* \ch}}
+\newcommand{\ee}{{* *}}
+\renewcommand{\Pr}{\mathbb{P}}
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\I}{\mathcal{I}}
+\newcommand{\U}{\mathcal{U}}
+\newcommand{\E}{\mathbb{E}}
+\renewcommand{\H}{\mathscr{H}}
+\newcommand{\G}{\mathscr{G}}
+\newcommand{\fat}{f_\theta^a}
+\newcommand{\fbt}{f_\theta^b}
+
+\newcommand{\nhs}[1]{\left\|#1\right\|_\text{HS}}
+\newcommand{\scal}[2]{\left\langle #1 \vert #2 \right\rangle}
+\newcommand{\floor}[1]{\left\lfloor#1\right\rfloor}
+\newcommand{\indep}{\perp\!\!\!\perp}
+
+\everymath{\displaystyle}
+
+%\usepackage{libertinus}
