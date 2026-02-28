@@ -46,6 +46,39 @@ def generate_swiss_data(n_points, t_max=2*np.pi, h_max=2*np.pi):
         points[i, 2] = h
     return points
 
+#tubular
+def generate_tubular_knot_surface(n_points, p=3, q=7, r0=2.0, tube_r=0.2):
+    """
+    Génère un nuage de points sur un tube autour de la courbe :
+        r(t) = r0 + cos(q/p t), theta=t, z(t)=sin(q/p t), t in [0,2*pi*p]
+    """
+    alpha = q / p
+    t = np.random.rand(n_points) * 2*np.pi*p
+    phi = np.random.rand(n_points) * 2*np.pi
+
+    r = r0 + np.cos(alpha * t)
+    dr = -alpha * np.sin(alpha * t)
+    dz = alpha * np.cos(alpha * t)
+
+    cos_t, sin_t = np.cos(t), np.sin(t)
+    x_c, y_c, z_c = r * cos_t, r * sin_t, np.sin(alpha * t)
+    tangents = np.stack([dr*cos_t - r*sin_t, dr*sin_t + r*cos_t, dz], axis=1)
+    T = tangents / np.linalg.norm(tangents, axis=1, keepdims=True)
+
+    # vecteur normal arbitraire
+    a = np.tile([0,0,1], (n_points,1))
+    mask = np.abs(np.sum(T * a, axis=1)) > 0.9
+    a[mask] = [1,0,0]
+
+    N = np.cross(a, T)
+    N /= np.linalg.norm(N, axis=1, keepdims=True)
+    B = np.cross(T, N)
+
+    points = np.stack([x_c, y_c, z_c], axis=1) + tube_r * (np.cos(phi)[:,None]*N + np.sin(phi)[:,None]*B)
+    return points
+
+
+
 def save_point_cloud(points, filename, data_dir='data', params=None):
     np.savetxt(f'{data_dir}/{filename}_{params}.txt', points)
 
