@@ -184,7 +184,7 @@ def sphere():
 def torus():
     R = 2.0
     r = 0.8
-    n_points = 2000
+    n_points = 1000
     
     # base torus point cloud
     X_base = generate_torus_data(n_points, R, r)
@@ -219,4 +219,4 @@ def torus():
     )
 
 if __name__ == "__main__":
-    sphere()
+    torus()

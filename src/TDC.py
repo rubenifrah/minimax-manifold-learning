@@ -18,6 +18,9 @@ def reconstruct_surface_tdc(points, intrinsic_dim=2):
     tc = gudhi.TangentialComplex(intrisic_dim=intrinsic_dim, points=points)
     tc.compute_tangential_complex()
     
+    # Mathematical cleanup of self-intersecting triangles ensuring a strict 2-manifold
+    tc.fix_inconsistencies_using_perturbation(0.01) # slight radius jitter to untangle overlapping edges
+    
     # Export to a SimplexTree
     st = tc.create_simplex_tree()
     
