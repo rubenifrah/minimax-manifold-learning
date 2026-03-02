@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import gudhi
 import os
+import pygeodesic.geodesic as geodesic
 
 from generate_data import generate_torus_data, generate_sphere_data, generate_tubular_knot_surface, generate_swiss_data 
 
@@ -31,6 +32,38 @@ def reconstruct_surface_tdc(points, intrinsic_dim=2):
 
 
 
+def compute_tdc_distances(points, triangles):
+    """
+    Compute exactly intrinsic geodesic distances across the faces 
+    of the TDC reconstructed mesh using the Exact Geodesic algorithm.
+    """
+    
+    n_points = len(points)
+    
+    if len(triangles) == 0:
+        print("Warning: No triangles found. Returning infinite distances.")
+        return np.full((n_points, n_points), np.inf), None
+
+    # Initialize the Exact Polyhedral Geodesic algorithm over the mesh
+    geoalg = geodesic.PyGeodesicAlgorithmExact(points, triangles)
+    
+    dist_matrix = np.zeros((n_points, n_points))
+    
+    print("Computing exact surface geodesics...")
+    for i in range(n_points):
+        # Computes the exact distances from vertex `i` to all other vertices over the mesh
+        distances, _ = geoalg.geodesicDistances(np.array([i]))
+        dist_matrix[i, :] = distances
+        
+    # Handle disconnected components (pygeodesic typically returns values near 1e16 or infinity for unreachable)
+    disconnected_mask = dist_matrix > 1e15
+    if disconnected_mask.any():
+        max_dist = dist_matrix[~disconnected_mask].max()
+        if max_dist == 0:
+            max_dist = 1.0 # fallback
+        dist_matrix[disconnected_mask] = max_dist * 10
+        
+    return dist_matrix, geoalg
 
 def plot_and_save(points, triangles, name, output_dir="images"):
     fig = plt.figure(figsize=(14, 6))
