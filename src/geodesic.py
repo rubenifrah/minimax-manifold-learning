@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import plotly.graph_objects as go
 from scipy.sparse.csgraph import dijkstra
 import os
 
@@ -19,10 +20,11 @@ def get_shortest_path(predecessors, start_idx, end_idx):
         curr = predecessors[start_idx, curr]
     return path[::-1] # reverse so it goes start -> end
 
-def plot_geodesic_comparison(X, start_idx, end_idx, k=8, max_edge=None, true_dist=None, true_path=None, method='both', title="Geodesic Estimation", save_name="geodesic_path.pdf"):
+def plot_geodesic_comparison(X, start_idx, end_idx, k=8, max_edge=None, true_dist=None, true_path=None, method='both', plot_engine='both', title="Geodesic Estimation", save_name="geodesic_path"):
     """
     General function to compute ISOMAP and/or TDC geodesics, plotting them against an optional true path.
     method: 'isomap', 'tdc', or 'both'
+    plot_engine: 'plotly', 'matplotlib', or 'both'
     """
     p0 = X[start_idx]
     p1 = X[end_idx]
@@ -81,40 +83,6 @@ def plot_geodesic_comparison(X, start_idx, end_idx, k=8, max_edge=None, true_dis
     if run_tdc and not has_tdc_path:
         print(f"WARNING: No TDC path found between points. Surface might be disconnected.")
         
-    # Plotting
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    
-    if run_tdc and len(triangles) > 0:
-        # Render the reconstructed complex surface mesh and the points
-        ax.plot_trisurf(X[:, 0], X[:, 1], X[:, 2], 
-                         triangles=triangles, cmap='viridis', edgecolor='none', alpha=0.7, zorder=1)
-        ax.scatter(X[:, 0], X[:, 1], X[:, 2], color='gray', s=5, alpha=0.3, label="Manifold points", zorder=2)
-    else:
-        # full point cloud
-        ax.scatter(X[:, 0], X[:, 1], X[:, 2], color='gray', s=5, alpha=0.3, label="Manifold points", zorder=2)
-    
-    # true mathematical geodesic
-    if true_path is not None:
-        ax.plot(true_path[:, 0], true_path[:, 1], true_path[:, 2], 
-                color='red', linewidth=3, label="True Geodesic", zorder=10)
-    
-    # ISOMAP shortest path
-    if has_iso_path:
-        ax.plot(iso_path_points[:, 0], iso_path_points[:, 1], iso_path_points[:, 2], 
-                color='blue', linewidth=2, linestyle='--', marker='o', markersize=4, 
-                label=f'ISOMAP Path (k={k})', zorder=11)
-                
-    # TDC shortest path
-    if has_tdc_path:
-        ax.plot(tdc_path_points[:, 0], tdc_path_points[:, 1], tdc_path_points[:, 2], 
-                color='magenta', linewidth=2, linestyle='-', marker='s', markersize=3, 
-                label=f'TDC Path', zorder=12)
-            
-    # two target points
-    ax.scatter(*p0, color='green', s=100, marker='*', label=f'Start Point ({start_idx})', zorder=15)
-    ax.scatter(*p1, color='orange', s=100, marker='*', label=f'End Point ({end_idx})', zorder=15)
-    
     # Build subtitle
     subtitles = []
     if true_dist is not None:
@@ -123,23 +91,142 @@ def plot_geodesic_comparison(X, start_idx, end_idx, k=8, max_edge=None, true_dis
         subtitles.append(f"ISOMAP: {iso_dist:.4f}")
     if run_tdc:
         subtitles.append(f"TDC: {tdc_dist:.4f}" if tdc_dist is not None else "TDC: Failed")
-        
     subtitle = " | ".join(subtitles)
-    ax.set_title(f"{title}\n{subtitle}")
-    
-    # axis aspect
-    ax.set_box_aspect([1, 1, 1])
-    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
 
-    # Save the plot
+    # Save and plotting logic
     output_dir = "images"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    save_path = os.path.join(output_dir, save_name)
-    plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    print(f"Saved figure to {save_path}")
-    
-    plt.show()
+        
+    if plot_engine in ['plotly', 'both']:
+        # Plotting using Plotly
+        fig = go.Figure()
+        
+        if run_tdc and len(triangles) > 0:
+            # Render the reconstructed complex surface mesh
+            fig.add_trace(go.Mesh3d(
+                x=X[:, 0], y=X[:, 1], z=X[:, 2],
+                i=triangles[:, 0], j=triangles[:, 1], k=triangles[:, 2],
+                color='lightgreen', opacity=0.4,
+                name='TDC Mesh', hoverinfo='skip'
+            ))
+            # Points
+            fig.add_trace(go.Scatter3d(
+                x=X[:, 0], y=X[:, 1], z=X[:, 2],
+                mode='markers', marker=dict(size=2, color='gray', opacity=0.3),
+                name="Manifold points"
+            ))
+        else:
+            # Full point cloud
+            fig.add_trace(go.Scatter3d(
+                x=X[:, 0], y=X[:, 1], z=X[:, 2],
+                mode='markers', marker=dict(size=2, color='gray', opacity=0.5),
+                name="Manifold points"
+            ))
+        
+        # True mathematical geodesic
+        if true_path is not None:
+            fig.add_trace(go.Scatter3d(
+                x=true_path[:, 0], y=true_path[:, 1], z=true_path[:, 2],
+                mode='lines', line=dict(color='red', width=6),
+                name="True Geodesic"
+            ))
+        
+        # ISOMAP shortest path
+        if has_iso_path:
+            fig.add_trace(go.Scatter3d(
+                x=iso_path_points[:, 0], y=iso_path_points[:, 1], z=iso_path_points[:, 2],
+                mode='lines+markers', 
+                line=dict(color='blue', width=5, dash='dash'), 
+                marker=dict(size=4, color='blue'),
+                name=f'ISOMAP Path (k={k})'
+            ))
+                    
+        # TDC shortest path
+        if has_tdc_path:
+            fig.add_trace(go.Scatter3d(
+                x=tdc_path_points[:, 0], y=tdc_path_points[:, 1], z=tdc_path_points[:, 2],
+                mode='lines+markers', 
+                line=dict(color='magenta', width=6), 
+                marker=dict(size=3, color='magenta', symbol='square'),
+                name='TDC Path'
+            ))
+                
+        # Two target points
+        fig.add_trace(go.Scatter3d(
+            x=[p0[0]], y=[p0[1]], z=[p0[2]],
+            mode='markers', marker=dict(size=8, color='green', symbol='circle'),
+            name=f'Start Point ({start_idx})'
+        ))
+        fig.add_trace(go.Scatter3d(
+            x=[p1[0]], y=[p1[1]], z=[p1[2]],
+            mode='markers', marker=dict(size=8, color='orange', symbol='circle'),
+            name=f'End Point ({end_idx})'
+        ))
+        
+        fig.update_layout(
+            title=f"{title}<br><sup>{subtitle}</sup>",
+            scene=dict(aspectmode='data'),
+            legend=dict(yanchor="top", y=0.9, xanchor="left", x=0.1),
+            margin=dict(l=0, r=0, b=0, t=50)
+        )
+
+        save_path_html = os.path.join(output_dir, f"{save_name}.html")
+        fig.write_html(save_path_html)
+        print(f"Saved interactive Plotly figure to {save_path_html}")
+        
+        # Automatically open interactive rendering
+        if plot_engine == 'plotly':
+            fig.show()
+            
+    if plot_engine in ['matplotlib', 'both']:
+        # Plotting using Matplotlib
+        fig_mpl = plt.figure(figsize=(10, 8))
+        ax = fig_mpl.add_subplot(111, projection='3d')
+        
+        if run_tdc and len(triangles) > 0:
+            # Render the reconstructed complex surface mesh and the points
+            ax.plot_trisurf(X[:, 0], X[:, 1], X[:, 2], 
+                             triangles=triangles, cmap='viridis', edgecolor='none', alpha=0.7, zorder=1)
+            ax.scatter(X[:, 0], X[:, 1], X[:, 2], color='gray', s=5, alpha=0.3, label="Manifold points", zorder=2)
+        else:
+            # full point cloud
+            ax.scatter(X[:, 0], X[:, 1], X[:, 2], color='gray', s=5, alpha=0.3, label="Manifold points", zorder=2)
+        
+        # true mathematical geodesic
+        if true_path is not None:
+            ax.plot(true_path[:, 0], true_path[:, 1], true_path[:, 2], 
+                    color='red', linewidth=3, label="True Geodesic", zorder=10)
+        
+        # ISOMAP shortest path
+        if has_iso_path:
+            ax.plot(iso_path_points[:, 0], iso_path_points[:, 1], iso_path_points[:, 2], 
+                    color='blue', linewidth=2, linestyle='--', marker='o', markersize=4, 
+                    label=f'ISOMAP Path (k={k})', zorder=11)
+                    
+        # TDC shortest path
+        if has_tdc_path:
+            ax.plot(tdc_path_points[:, 0], tdc_path_points[:, 1], tdc_path_points[:, 2], 
+                    color='magenta', linewidth=2, linestyle='-', marker='s', markersize=3, 
+                    label=f'TDC Path', zorder=12)
+                
+        # two target points
+        ax.scatter(*p0, color='green', s=100, marker='*', label=f'Start Point ({start_idx})', zorder=15)
+        ax.scatter(*p1, color='orange', s=100, marker='*', label=f'End Point ({end_idx})', zorder=15)
+        
+        ax.set_title(f"{title}\n{subtitle}")
+        
+        # axis aspect
+        ax.set_box_aspect([1, 1, 1])
+        ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+
+        # Save the plot
+        save_path_pdf = os.path.join(output_dir, f"{save_name}.pdf")
+        plt.savefig(save_path_pdf, dpi=150, bbox_inches='tight')
+        print(f"Saved static Matplotlib PDF to {save_path_pdf}")
+        
+        if plot_engine == 'matplotlib':
+            plt.show()
 
 def main():
     import argparse
@@ -149,6 +236,7 @@ def main():
     parser.add_argument('--k', type=int, default=8, help="Number of neighbors for ISOMAP")
     parser.add_argument('--max_edge', type=float, default=None, help="Maximum squared edge length for TDC")
     parser.add_argument('--method', type=str, choices=['isomap', 'tdc', 'both'], default='both', help="Method(s) to compute geodesic")
+    parser.add_argument('--plot_engine', type=str, choices=['plotly', 'matplotlib', 'both'], default='both', help="Which plotting engine to use for generation")
     parser.add_argument('--points', type=str, choices=['fixed', 'random'], default='fixed', help="How to choose start and end points")
     
     args = parser.parse_args()
@@ -252,8 +340,9 @@ def main():
         true_dist=true_dist, 
         true_path=true_path,
         method=args.method,
+        plot_engine=args.plot_engine,
         title=f"{args.manifold.capitalize()} ({args.points}): ISOMAP vs TDC",
-        save_name=f"geodesic_path_{args.manifold}_{args.points}.pdf"
+        save_name=f"geodesic_path_{args.manifold}_{args.points}"
     )
 
 if __name__ == "__main__":
