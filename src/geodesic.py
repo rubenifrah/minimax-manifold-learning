@@ -19,7 +19,7 @@ def get_shortest_path(predecessors, start_idx, end_idx):
         curr = predecessors[start_idx, curr]
     return path[::-1] # reverse so it goes start -> end
 
-def plot_geodesic_comparison(X, start_idx, end_idx, k=8, true_dist=None, true_path=None, method='both', title="Geodesic Estimation", save_name="geodesic_path.pdf"):
+def plot_geodesic_comparison(X, start_idx, end_idx, k=8, max_edge=None, true_dist=None, true_path=None, method='both', title="Geodesic Estimation", save_name="geodesic_path.pdf"):
     """
     General function to compute ISOMAP and/or TDC geodesics, plotting them against an optional true path.
     method: 'isomap', 'tdc', or 'both'
@@ -58,7 +58,7 @@ def plot_geodesic_comparison(X, start_idx, end_idx, k=8, true_dist=None, true_pa
 
     if run_tdc:
         # Compute TDC Surface & exact shortest path
-        triangles = reconstruct_surface_tdc(X)
+        triangles = reconstruct_surface_tdc(X, max_edge_length_squared=max_edge)
         dist_matrix, geoalg = compute_tdc_distances(X, triangles)
         if geoalg is not None:
             tdc_dist = dist_matrix[start_idx, end_idx]
@@ -141,82 +141,120 @@ def plot_geodesic_comparison(X, start_idx, end_idx, k=8, true_dist=None, true_pa
     
     plt.show()
 
-def sphere():
-    radius = 1.0
-    n_points = 100
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Geodesic Path Estimation (ISOMAP vs TDC)")
+    parser.add_argument('--manifold', type=str, choices=['sphere', 'torus', 'swiss', 'knot'], default='sphere', help="Manifold type")
+    parser.add_argument('--n_points', type=int, default=1000, help="Number of points to sample")
+    parser.add_argument('--k', type=int, default=8, help="Number of neighbors for ISOMAP")
+    parser.add_argument('--max_edge', type=float, default=None, help="Maximum squared edge length for TDC")
+    parser.add_argument('--method', type=str, choices=['isomap', 'tdc', 'both'], default='both', help="Method(s) to compute geodesic")
+    parser.add_argument('--points', type=str, choices=['fixed', 'random'], default='fixed', help="How to choose start and end points")
     
-    # base sphere point cloud
-    X_base = generate_sphere_data(n_points, radius)
+    args = parser.parse_args()
     
-    # target points defined by angle difference
-    angle = np.pi / 2
-    # p0 = North pole
-    p0 = np.array([0, 0, radius])
-    # target point
-    p1 = np.array([radius * np.sin(angle), 0, radius * np.cos(angle)])
+    true_dist = None
+    true_path = None
     
-    # Combine data + two points s.t. targets are exactly at indices 0 and 1
+    if args.manifold == 'sphere':
+        radius = 1.0
+        X_base = generate_sphere_data(args.n_points, radius)
+        
+        if args.points == 'fixed':
+            angle = np.pi / 2
+            p0 = np.array([0, 0, radius])
+            p1 = np.array([radius * np.sin(angle), 0, radius * np.cos(angle)])
+            true_dist = radius * angle
+            
+            t = np.linspace(0, angle, 50)
+            arc_x = radius * np.sin(t)
+            arc_y = np.zeros_like(t)
+            arc_z = radius * np.cos(t)
+            true_path = np.vstack([arc_x, arc_y, arc_z]).T
+        else: # random
+            idx0, idx1 = np.random.choice(len(X_base), 2, replace=False)
+            p0 = X_base[idx0]
+            p1 = X_base[idx1]
+            
+            # calculate true distance on sphere using arc length
+            dot_product = np.clip(np.dot(p0, p1) / (radius**2), -1.0, 1.0)
+            angle = np.arccos(dot_product)
+            true_dist = radius * angle
+            
+            # SLERP for the true geodesic path interpolation
+            omega = angle
+            if omega > 1e-5:
+                t = np.linspace(0, 1, 50)
+                true_path = np.array([(np.sin((1-t_val)*omega)/np.sin(omega))*p0 + (np.sin(t_val*omega)/np.sin(omega))*p1 for t_val in t])
+            else:
+                true_path = np.vstack([p0, p1])
+                
+        if args.points == 'random':
+            X_base = np.delete(X_base, [idx0, idx1], axis=0)
+            
+    elif args.manifold == 'torus':
+        R = 2.0
+        r = 0.8
+        X_base = generate_torus_data(args.n_points, R, r)
+        
+        if args.points == 'fixed':
+            theta0, phi0 = 0.0, 0.0
+            theta1, phi1 = np.pi, np.pi / 2
+            p0 = np.array([(R + r * np.cos(theta0)) * np.cos(phi0), 
+                           (R + r * np.cos(theta0)) * np.sin(phi0), 
+                           r * np.sin(theta0)])
+            p1 = np.array([(R + r * np.cos(theta1)) * np.cos(phi1), 
+                           (R + r * np.cos(theta1)) * np.sin(phi1), 
+                           r * np.sin(theta1)])
+        else:
+            idx0, idx1 = np.random.choice(len(X_base), 2, replace=False)
+            p0 = X_base[idx0]
+            p1 = X_base[idx1]
+            
+        if args.points == 'random':
+            X_base = np.delete(X_base, [idx0, idx1], axis=0)
+
+    elif args.manifold == 'swiss':
+        from generate_data import generate_swiss_data
+        X_base = generate_swiss_data(args.n_points)
+        if args.points == 'fixed':
+            p0 = X_base[0]
+            p1 = X_base[-1]
+            X_base = X_base[1:-1]
+        else:
+            idx0, idx1 = np.random.choice(len(X_base), 2, replace=False)
+            p0 = X_base[idx0]
+            p1 = X_base[idx1]
+            X_base = np.delete(X_base, [idx0, idx1], axis=0)
+
+    elif args.manifold == 'knot':
+        from generate_data import generate_tubular_knot_surface
+        X_base = generate_tubular_knot_surface(args.n_points)
+        if args.points == 'fixed':
+            p0 = X_base[0]
+            p1 = X_base[int(len(X_base)/2)]
+            X_base = np.delete(X_base, [0, int(len(X_base)/2)], axis=0)
+        else:
+            idx0, idx1 = np.random.choice(len(X_base), 2, replace=False)
+            p0 = X_base[idx0]
+            p1 = X_base[idx1]
+            X_base = np.delete(X_base, [idx0, idx1], axis=0)
+            
+    # Combine the start/end points exactly at indices 0 and 1
     X = np.vstack([p0, p1, X_base])
     
-    # True Geodesic Distance
-    true_dist = radius * angle
-    
-    # true mathematical geodesic (the Great Circle arc)
-    t = np.linspace(0, angle, 50)
-    arc_x = radius * np.sin(t)
-    arc_y = np.zeros_like(t)
-    arc_z = radius * np.cos(t)
-    true_path = np.vstack([arc_x, arc_y, arc_z]).T
-    
-    # Compare both
     plot_geodesic_comparison(
         X=X, 
         start_idx=0, 
         end_idx=1,
-        k=8,
+        k=args.k,
+        max_edge=args.max_edge,
         true_dist=true_dist, 
         true_path=true_path,
-        method='both', # Try 'both', 'isomap', or 'tdc'
-        title="Sphere: True Geodesic vs ISOMAP vs TDC",
-        save_name="geodesic_path_sphere_unified.pdf"
-    )
-
-def torus():
-    R = 2.0
-    r = 0.8
-    n_points = 1000
-    
-    # base torus point cloud
-    X_base = generate_torus_data(n_points, R, r)
-    
-    # Let's fix a starting point and an ending point
-    # Intrinsic coordinates (theta, phi)
-    theta0, phi0 = 0.0, 0.0
-    # Destination is rotated fully around the small circle (pi) and halfway around the big circle (pi/2)
-    theta1, phi1 = np.pi, np.pi / 2
-    
-    p0 = np.array([(R + r * np.cos(theta0)) * np.cos(phi0), 
-                   (R + r * np.cos(theta0)) * np.sin(phi0), 
-                   r * np.sin(theta0)])
-                   
-    p1 = np.array([(R + r * np.cos(theta1)) * np.cos(phi1), 
-                   (R + r * np.cos(theta1)) * np.sin(phi1), 
-                   r * np.sin(theta1)])
-                   
-    # Combine data
-    X = np.vstack([p0, p1, X_base])
-    
-    plot_geodesic_comparison(
-        X=X, 
-        start_idx=0, 
-        end_idx=1, 
-        k=12, 
-        true_dist=None, 
-        true_path=None,
-        method='both', # Try 'both', 'isomap', or 'tdc'
-        title="Torus: ISOMAP vs TDC Geodesic Estimation",
-        save_name="geodesic_path_torus_unified.pdf"
+        method=args.method,
+        title=f"{args.manifold.capitalize()} ({args.points}): ISOMAP vs TDC",
+        save_name=f"geodesic_path_{args.manifold}_{args.points}.pdf"
     )
 
 if __name__ == "__main__":
-    torus()
+    main()

@@ -47,7 +47,7 @@ def generate_swiss_data(n_points, t_max=2*np.pi, h_max=2*np.pi):
     return points
 
 #tubular
-def generate_tubular_knot_surface(n_points, p=3, q=7, r0=2.0, tube_r=0.2):
+def generate_tubular_knot_surface(n_points, p=2, q=3, r0=2.0, tube_r=0.2):
     """
     Génère un nuage de points sur un tube autour de la courbe :
         r(t) = r0 + cos(q/p t), theta=t, z(t)=sin(q/p t), t in [0,2*pi*p]
@@ -88,23 +88,22 @@ def load_point_cloud(filename, data_dir='data', params=None):
 def main():
     # generate sphere data
     n_points = 1000
-    radius = 1.0
-    points = generate_sphere_data(n_points, radius)
+    points = generate_tubular_knot_surface(n_points, p=2, q=3, r0=2.0, tube_r=0.2)
     # save the point cloud
     data_dir = 'data'
-    save_point_cloud(points, 'sphere_data', data_dir, params=f'radius_{radius}_n_points_{n_points}')
+    save_point_cloud(points, 'tubular_knot_surface', data_dir, params=f'n_points_{n_points}')
     # load the point cloud
-    points = load_point_cloud('sphere_data', data_dir, params=f'radius_{radius}_n_points_{n_points}')
+    points = load_point_cloud('tubular_knot_surface', data_dir, params=f'n_points_{n_points}')
     # plot the point cloud
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     
-    ax.set_title(f'Sphere Data - Radius: {radius}, N Points: {n_points}')
+    ax.set_title(f'tubular knot surface Data - N Points: {n_points}')
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     # set the aspect ratio to be equal
-    ax.set_box_aspect([1, 1, 1])
+    ax.axis('equal')
     
     ax.scatter(points[:, 0], points[:, 1], points[:, 2])
     plt.show()

@@ -8,31 +8,109 @@ import pygeodesic.geodesic as geodesic
 from generate_data import generate_torus_data, generate_sphere_data, generate_tubular_knot_surface, generate_swiss_data 
 
 
-def reconstruct_surface_tdc(points, intrinsic_dim=2):
+def reconstruct_surface_tdc(points, intrinsic_dim=2, max_edge_length_squared=None):
     """
     Reconstruct a surface from a point cloud using Tangential Delaunay Complex.
     """
     print("Computing Tangential Complex...")
     
-    # we will probably work only with intrinsic dimension is 2 for a surface embedded in 3D
-    tc = gudhi.TangentialComplex(intrisic_dim=intrinsic_dim, points=points)
-    tc.compute_tangential_complex()
+    # Apply microscopic noise to uniquely perturb coordinates. GUDHI's C++ solver 
+    # loops infinitely on perfectly uniform/co-circular geometric degeneracies.
+    np.random.seed(42)
+    jitter = np.random.normal(scale=1e-5, size=points.shape)
+    perturbed_points = points + jitter
     
-    # Mathematical cleanup of self-intersecting triangles ensuring a strict 2-manifold
-    tc.fix_inconsistencies_using_perturbation(0.01) # slight radius jitter to untangle overlapping edges
+    tc = gudhi.TangentialComplex(intrisic_dim=intrinsic_dim, points=perturbed_points)
+    if max_edge_length_squared is not None:
+        tc.set_max_squared_edge_length(max_edge_length_squared)
+    tc.compute_tangential_complex()
     
     # Export to a SimplexTree
     st = tc.create_simplex_tree()
     
-    # Extract triangles (simplices of dimension 2, i.e., 3 vertices)
-    triangles = []
+    # Extract raw triangles
+    raw_triangles = []
     for simplex, filtration in st.get_simplices():
         if len(simplex) == 3:
-            triangles.append(simplex)
+            raw_triangles.append(simplex)
             
-    print(f"Extracted {len(triangles)} triangles from the complex.")
-    return np.array(triangles)
+    print(f"Extracted {len(raw_triangles)} raw triangles from the complex.")
+    
+    # Greedy topological pruning to enforce a strict 2-manifold 
+    # (required for mathematically generic C++ Geodesic Solvers like CGAL)
+    edge_counts = {}
+    for t in raw_triangles:
+        for i in range(3):
+            e = tuple(sorted((t[i], t[(i+1)%3])))
+            edge_counts[e] = edge_counts.get(e, 0) + 1
+            
+    current_triangles = list(raw_triangles)
+    dropped = 0
+    
+    while True:
+        non_manifold_edges = {e: c for e, c in edge_counts.items() if c > 2}
+        if not non_manifold_edges:
+            break
+            
+        worst_edge = max(non_manifold_edges, key=non_manifold_edges.get)
+        
+        # Find the worst triangles
+        bad_tris_indices = []
+        for idx, t in enumerate(current_triangles):
+            for i in range(3):
+                e = tuple(sorted((t[i], t[(i+1)%3])))
+                if e == worst_edge:
+                    bad_tris_indices.append(idx)
+                    break
+                    
+        drop_idx = bad_tris_indices[-1]
+        drop_t = current_triangles.pop(drop_idx)
+        
+        for i in range(3):
+            e = tuple(sorted((drop_t[i], drop_t[(i+1)%3])))
+            edge_counts[e] -= 1
+            if edge_counts[e] == 0:
+                del edge_counts[e]
+                
+        dropped += 1
 
+    if dropped > 0:
+        print(f"Pruned exactly {dropped} overlapping triangles to enforce strict 2-manifold geometry.")
+
+    return np.array(current_triangles)
+
+
+class TDCDistanceSolver:
+    def __init__(self, points, triangles):
+        self.points = points
+        self.triangles = triangles
+        
+        # Build scipy graph for robust Dijkstra path fallback tracing
+        from scipy.sparse import csr_matrix
+        row, col, data = [], [], []
+        for t in triangles:
+            for i in range(3):
+                u, v = t[i], t[(i+1)%3]
+                d = np.linalg.norm(points[u] - points[v])
+                row.extend([u, v])
+                col.extend([v, u])
+                data.extend([d, d])
+        self.graph = csr_matrix((data, (row, col)), shape=(len(points), len(points)))
+        
+    def geodesicDistance(self, start_idx, end_idx):
+        from scipy.sparse.csgraph import dijkstra
+        dist, pred = dijkstra(self.graph, indices=start_idx, return_predecessors=True)
+        path = []
+        curr = end_idx
+        while curr != -9999 and curr >= 0:
+            path.append(curr)
+            if curr == start_idx:
+                break
+            curr = pred[curr]
+            
+        path = path[::-1]
+        path_points = self.points[path] if (len(path) > 0 and path[0] == start_idx) else []
+        return 0, path_points
 
 
 def compute_tdc_distances(points, triangles):
@@ -40,33 +118,46 @@ def compute_tdc_distances(points, triangles):
     Compute exactly intrinsic geodesic distances across the faces 
     of the TDC reconstructed mesh using the Exact Geodesic algorithm.
     """
-    
     n_points = len(points)
     
     if len(triangles) == 0:
         print("Warning: No triangles found. Returning infinite distances.")
         return np.full((n_points, n_points), np.inf), None
 
-    # Initialize the Exact Polyhedral Geodesic algorithm over the mesh
+    # Exact Geodesic C++ solvers (CGAL, pygeodesic) mathematically crash/hang on non-manifold meshes.
+    # We must explicitly check the mesh and abort gracefully if the user has not tuned max_edge_length_squared enough.
+    edge_counts = {}
+    for t in triangles:
+        for i in range(3):
+            e = tuple(sorted((t[i], t[(i+1)%3])))
+            edge_counts[e] = edge_counts.get(e, 0) + 1
+    
+    non_manifold_edges = sum(1 for c in edge_counts.values() if c > 2)
+    if non_manifold_edges > 0:
+        print(f"\n[CRITICAL ERROR] The generated TDC mesh fundamentally contains {non_manifold_edges} non-manifold edges!!")
+        print("Exact Surface Geodesic solvers CANNOT mathematically unroll overlapping/intersecting faces and will hang.")
+        print("-> You MUST tune your --max_edge parameter to prevent GUDHI from creating these intersections!\n")
+        return np.full((n_points, n_points), np.inf), None
+
+    # Initialize the Exact Polyhedral Geodesic algorithm over the strict manifold mesh
     geoalg = geodesic.PyGeodesicAlgorithmExact(points, triangles)
     
     dist_matrix = np.zeros((n_points, n_points))
     
     print("Computing exact surface geodesics...")
     for i in range(n_points):
-        # Computes the exact distances from vertex `i` to all other vertices over the mesh
         distances, _ = geoalg.geodesicDistances(np.array([i]))
         dist_matrix[i, :] = distances
         
-    # Handle disconnected components (pygeodesic typically returns values near 1e16 or infinity for unreachable)
     disconnected_mask = dist_matrix > 1e15
     if disconnected_mask.any():
         max_dist = dist_matrix[~disconnected_mask].max()
         if max_dist == 0:
-            max_dist = 1.0 # fallback
+            max_dist = 1.0 
         dist_matrix[disconnected_mask] = max_dist * 10
         
     return dist_matrix, geoalg
+
 
 def plot_and_save(points, triangles, name, output_dir="images"):
     fig = plt.figure(figsize=(14, 6))
