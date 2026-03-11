@@ -7,7 +7,7 @@ venv
 __pycache__/
 *.pyc
 .pyc
-
+notebooks/knot_geodesics.py
 
 # .DS_Store
 .DS_Store

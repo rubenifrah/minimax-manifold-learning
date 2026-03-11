@@ -82,16 +82,41 @@ def generate_tubular_knot_surface(n_points, p=2, q=3, r0=2.0, tube_r=0.2):
 def save_point_cloud(points, filename, data_dir='data', params=None):
     np.savetxt(f'{data_dir}/{filename}_{params}.txt', points)
 
+def save_ply(points, filename, data_dir='data', params=None):
+    import os
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+        
+    filepath = f'{data_dir}/{filename}_{params}.ply'
+    
+    with open(filepath, 'w') as f:
+        # PLY Header
+        f.write("ply\n")
+        f.write("format ascii 1.0\n")
+        f.write("comment Generated Manifold Point Cloud for Minimax Manifold Learning Study\n")
+        f.write(f"element vertex {len(points)}\n")
+        f.write("property float x\n")
+        f.write("property float y\n")
+        f.write("property float z\n")
+        f.write("end_header\n")
+        
+        # Vertices
+        for point in points:
+            f.write(f"{point[0]} {point[1]} {point[2]}\n")
+            
+    print(f"Saved PLY file to {filepath}")
+
 def load_point_cloud(filename, data_dir='data', params=None):
     return np.loadtxt(f'{data_dir}/{filename}_{params}.txt')
 
 def main():
     # generate sphere data
-    n_points = 1000
+    n_points = 5000
     points = generate_tubular_knot_surface(n_points, p=2, q=3, r0=2.0, tube_r=0.2)
     # save the point cloud
     data_dir = 'data'
     save_point_cloud(points, 'tubular_knot_surface', data_dir, params=f'n_points_{n_points}')
+    save_ply(points, 'tubular_knot_surface', data_dir, params=f'n_points_{n_points}')
     # load the point cloud
     points = load_point_cloud('tubular_knot_surface', data_dir, params=f'n_points_{n_points}')
     # plot the point cloud
@@ -102,8 +127,6 @@ def main():
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    # set the aspect ratio to be equal
-    ax.axis('equal')
     
     ax.scatter(points[:, 0], points[:, 1], points[:, 2])
     plt.show()
